@@ -1,0 +1,4 @@
+streamlit==1.44.1         # Streamlit version 1.44.1
+torch==2.7.0              # PyTorch version 2.7.0
+transformers==4.51.3 
+microsoft/DialoGPT-small
