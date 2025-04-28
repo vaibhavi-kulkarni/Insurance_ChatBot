@@ -1,31 +1,40 @@
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+import streamlit as st
+from utils.data import predefined_responses
+ # 💡 Import here
 
-# Load pre-trained model and tokenizer
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-model = GPT2LMHeadModel.from_pretrained('gpt2')
+# Load DialoGPT-small
+tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-small")
+model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-small")
 
-# Function to generate responses from GPT-2
+# Initialize chat history
+chat_history_ids = None
+
+# Function to generate response
 def generate_response(user_input):
-    # Chatbot instruction to provide accurate and trustworthy information
-    prompt = f"""
-    ${user_input} , heyy i got you query regarding insurance . I'm helping you with that. I'm a chatbot designed to assist you with insurance policy and provide accurate and trustworthy information. about the insurance you are asking this is the information from my side . here are some insurance plan you 
-    """
+    global chat_history_ids
 
-    # Encode the user input with the added instruction
-    inputs = tokenizer.encode(prompt, return_tensors='pt')
+    user_input_lower = user_input.lower()
 
-    # Increase the response length and use parameters for better output quality
-    outputs = model.generate(inputs, max_length=350, num_return_sequences=1, no_repeat_ngram_size=2, top_p=0.92, top_k=50)
+    # First, check predefined responses
+    for item in predefined_responses:
+        for keyword in item["keywords"]:
+            if keyword in user_input_lower:
+                return item["response"]
 
-    # Decode the model output and clean up the response
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # Otherwise, fallback to DialoGPT model response
+    new_input_ids = tokenizer.encode(user_input + tokenizer.eos_token, return_tensors='pt')
+    bot_input_ids = torch.cat([chat_history_ids, new_input_ids], dim=-1) if chat_history_ids is not None else new_input_ids
 
-    # Check if the split string exists in the response before attempting to split
-    split_string = f"${user_input} , heyy"
-    if split_string in response:
-        response = response.split(split_string)[1].strip()
-    else:
-        # If the expected string is not found, return the whole response or a fallback message
-        response = response.strip()
+    chat_history_ids = model.generate(
+        bot_input_ids,
+        max_length=1000,
+        pad_token_id=tokenizer.eos_token_id,
+        do_sample=True,
+        top_k=50,
+        top_p=0.95
+    )
 
-    return response
+    response = tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
+    return response.strip()
