@@ -1,8 +1,7 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import streamlit as st
-from utils.data import predefined_responses
- # 💡 Import here
+from utils.data import predefined_system_info # Import the updated data
 
 # Load DialoGPT-small
 tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-small")
@@ -18,9 +17,11 @@ def generate_response(user_input):
     user_input_lower = user_input.lower()
 
     # First, check predefined responses
-    for item in predefined_responses:
+    for item in predefined_system_info:
         for keyword in item["keywords"]:
             if keyword in user_input_lower:
+                if callable(item["response"]):
+                    return item["response"](user_input)  # Call the lambda function for plan details
                 return item["response"]
 
     # Otherwise, fallback to DialoGPT model response
